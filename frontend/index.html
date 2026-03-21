@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ASL Translator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body { margin: 0; background: #1a1a08; font-family: 'Press Start 2P', monospace; image-rendering: pixelated; }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+      /* Mobile base */
+      html { font-size: 16px; }
+      @media (max-width: 480px) {
+        html { font-size: 14px; }
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+      @keyframes heartLose {
+        0%   { transform: scale(1) rotate(0deg); opacity: 1; }
+        20%  { transform: scale(1.3) rotate(-15deg); }
+        40%  { transform: scale(0.9) rotate(10deg); }
+        60%  { transform: scale(1.1) rotate(-8deg); }
+        80%  { transform: scale(0.6) rotate(5deg); opacity: 0.5; }
+        100% { transform: scale(0) rotate(0deg); opacity: 0; }
+      }
+      @keyframes pixelPop {
+        0%   { transform: scale(1); }
+        50%  { transform: scale(1.2); }
+        100% { transform: scale(1); }
+      }
+      @keyframes blockSlide {
+        from { transform: translateY(-8px); opacity: 0; }
+        to   { transform: translateY(0); opacity: 1; }
+      }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0; }
+      }
+      .mc-btn {
+        font-family: 'Press Start 2P', monospace;
+        image-rendering: pixelated;
+        cursor: pointer;
+        border: none;
+        outline: none;
+        position: relative;
+        transition: filter 0.1s;
+      }
+      .mc-btn:hover { filter: brightness(1.2); }
+      .mc-btn:active { transform: translateY(2px); }
+
+      /* Mobile layout helpers */
+      @media (max-width: 600px) {
+        /* Stack camera + controls vertically, full width */
+        .mc-layout { flex-direction: column !important; }
+        .mc-camera-col, .mc-right-col { flex: unset !important; width: 100% !important; }
+        /* Smaller font for pixel text on mobile */
+        .mc-page-title { font-size: 10px !important; }
+        /* Button rows wrap */
+        .mc-btn-row { flex-wrap: wrap !important; gap: 8px !important; }
+        /* Game camera full width */
+        .mc-game-camera { max-width: 100% !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
