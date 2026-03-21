@@ -15,7 +15,7 @@ const LETTERS = "ABCDEFGHIKLMNOPQRSTUVWXY".split("");
 const WORDS = ["CAT","DOG","BAT","CAN","HAM","FAN","BIG","CUP","HEN","MAP","NAP","OAK","PIG","RAN","SAP","TAN","VAN","WAX","YAK","FIG","GUM","HIP","KIT","LAP","MOP"];
 const REQUIRED_HITS = 4;
 const TOTAL_ROUNDS = 10;
-const WS_BASE = "ws://localhost:8000";
+const WS_BASE = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000";
 
 type Phase = "intro" | "playing" | "result";
 type GameMode = "sprint" | "word" | "daily";
