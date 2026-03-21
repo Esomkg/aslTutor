@@ -1,2 +1,5 @@
 [phases.setup]
 nixPkgs = ["python311", "libGL", "glib"]
+
+[variables]
+LD_LIBRARY_PATH = "/root/.nix-profile/lib"
