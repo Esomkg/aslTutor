@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SignQuest — Presentation</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a1a08;
+    font-family: 'Press Start 2P', monospace;
+    color: #f0f0e0;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ── Slide container ── */
+  .deck { width: 100vw; height: 100vh; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 48px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  .slide.active { opacity: 1; pointer-events: all; }
+
+  /* ── Nav ── */
+  .nav {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; z-index: 100;
+  }
+  .nav button {
+    font-family: 'Press Start 2P', monospace;
+    background: #2a2a14; color: #a0d040;
+    border: 2px solid #4a6a18; padding: 8px 16px; font-size: 8px;
+    cursor: pointer;
+  }
+  .nav button:hover { background: #3a3a1a; }
+  .slide-counter {
+    position: fixed; top: 16px; right: 24px;
+    font-size: 7px; color: #505040;
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 22px; color: #a0d040; text-align: center; line-height: 1.6; margin-bottom: 16px; }
+  h2 { font-size: 14px; color: #a0d040; margin-bottom: 24px; text-align: center; line-height: 1.8; }
+  h3 { font-size: 10px; color: #c8e860; margin-bottom: 12px; }
+  p  { font-size: 8px; line-height: 2.2; color: #c0c0a0; text-align: center; max-width: 700px; }
+  .sub { font-size: 8px; color: #606040; margin-top: 8px; text-align: center; }
+
+  /* ── Cards grid ── */
+  .grid { display: grid; gap: 16px; width: 100%; max-width: 900px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card {
+    background: #2a2a14; border: 2px solid #4a4a20;
+    padding: 20px; box-shadow: inset -2px -2px 0 #1a1a08;
+  }
+  .card h3 { color: #a0d040; font-size: 8px; margin-bottom: 10px; }
+  .card p  { font-size: 7px; color: #909070; text-align: left; line-height: 2; }
+  .card .icon { font-size: 24px; margin-bottom: 10px; display: block; }
+
+  /* ── Feature list ── */
+  .feat-list { list-style: none; max-width: 700px; width: 100%; }
+  .feat-list li {
+    font-size: 8px; color: #c0c0a0; line-height: 1;
+    padding: 10px 0; border-bottom: 1px solid #2a2a14;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .feat-list li::before { content: "▸"; color: #a0d040; flex-shrink: 0; }
+
+  /* ── Tech stack pills ── */
+  .pills { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 800px; }
+  .pill {
+    background: #1a2a08; border: 2px solid #4a6a18;
+    padding: 8px 14px; font-size: 7px; color: #a0d040;
+  }
+
+  /* ── Accent box ── */
+  .accent-box {
+    background: #141408; border: 3px solid #a0d040;
+    padding: 24px 32px; max-width: 700px; text-align: center;
+    box-shadow: 4px 4px 0 #3a5010;
+  }
+  .accent-box p { font-size: 9px; color: #f0f0e0; }
+
+  /* ── Stat row ── */
+  .stats { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+  .stat {
+    background: #2a2a14; border: 2px solid #4a4a20;
+    padding: 20px 28px; text-align: center; min-width: 140px;
+  }
+  .stat .num { font-size: 20px; color: #a0d040; display: block; margin-bottom: 8px; }
+  .stat .lbl { font-size: 6px; color: #606040; }
+
+  /* ── Architecture diagram ── */
+  .arch {
+    display: flex; align-items: center; gap: 0; max-width: 860px; width: 100%;
+    justify-content: center;
+  }
+  .arch-box {
+    background: #2a2a14; border: 2px solid #4a4a20;
+    padding: 14px 18px; font-size: 7px; color: #c0c0a0;
+    text-align: center; line-height: 2;
+  }
+  .arch-arrow { font-size: 14px; color: #4a6a18; padding: 0 8px; flex-shrink: 0; }
+
+  /* ── Title slide decoration ── */
+  .pixel-border {
+    border: 4px solid #a0d040;
+    box-shadow: 8px 8px 0 #3a5010, inset 0 0 0 2px #1a1a08;
+    padding: 40px 60px;
+    text-align: center;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  .blink { animation: blink 1.2s step-end infinite; }
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <!-- ── SLIDE 1: Title ── -->
+  <div class="slide active" id="s1">
+    <div class="pixel-border">
+      <h1>🤟 SignQuest</h1>
+      <p style="font-size:9px; color:#a0d040; margin: 16px 0;">Learn American Sign Language</p>
+      <p style="font-size:7px; color:#606040;">AI-Powered · Gamified · Real-Time Camera</p>
+    </div>
+    <p class="sub" style="margin-top:32px;">Press → to continue <span class="blink">▋</span></p>
+  </div>
+
+  <!-- ── SLIDE 2: Problem ── -->
+  <div class="slide" id="s2">
+    <h2>The Problem</h2>
+    <div class="grid grid-2" style="max-width:800px;">
+      <div class="card">
+        <span class="icon">😔</span>
+        <h3>ASL is hard to learn alone</h3>
+        <p>Most resources are passive videos. No feedback on whether you're signing correctly.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📚</span>
+        <h3>No interactive practice</h3>
+        <p>Existing apps focus on vocabulary lists, not real-time hand recognition or personalized coaching.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🌍</span>
+        <h3>Accessibility gap</h3>
+        <p>70 million Deaf people worldwide use sign language. Hearing people rarely learn it.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🎮</span>
+        <h3>Low engagement</h3>
+        <p>Traditional learning is boring. Learners drop off quickly without motivation systems.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 3: Solution ── -->
+  <div class="slide" id="s3">
+    <h2>Our Solution</h2>
+    <div class="accent-box">
+      <p>SignQuest is a gamified ASL learning platform with real-time webcam hand recognition, an AI tutor powered by Groq, and a Minecraft-inspired interface that makes learning feel like play.</p>
+    </div>
+    <div class="stats" style="margin-top: 32px;">
+      <div class="stat"><span class="num">24</span><span class="lbl">ASL Letters</span></div>
+      <div class="stat"><span class="num">AI</span><span class="lbl">Groq Tutor</span></div>
+      <div class="stat"><span class="num">📷</span><span class="lbl">Live Camera</span></div>
+      <div class="stat"><span class="num">🎮</span><span class="lbl">Game Mode</span></div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 4: Features ── -->
+  <div class="slide" id="s4">
+    <h2>Key Features</h2>
+    <ul class="feat-list">
+      <li>Real-time ASL letter recognition via webcam using MediaPipe + custom ML model</li>
+      <li>Sign Sprint game — sign letters before the timer runs out, earn points</li>
+      <li>Learn mode — interactive alphabet with animated SVG handshapes</li>
+      <li>AI Tutor — streaming chat with Groq (llama-3.3-70b), tool calling, web search</li>
+      <li>Spell Your Name — sign each letter of your name with live camera feedback</li>
+      <li>Progress tracking — practiced letters, streaks, achievements, high scores</li>
+      <li>Supabase auth — login/guest mode, cloud sync across devices</li>
+      <li>Daily challenges, quiz mode, difficulty levels (Easy / Normal / Hard)</li>
+    </ul>
+  </div>
+
+  <!-- ── SLIDE 5: AI Tutor ── -->
+  <div class="slide" id="s5">
+    <h2>AI Tutor — Powered by Groq</h2>
+    <div class="grid grid-3" style="max-width:900px;">
+      <div class="card">
+        <span class="icon">🧠</span>
+        <h3>Personalized</h3>
+        <p>Knows your practiced letters, weak spots, and progress. Every response is tailored to you.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🔧</span>
+        <h3>Tool Calling</h3>
+        <p>8 tools: stats, lesson plans, web search, letter detail, sign lookup, Deaf culture, common errors.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🌐</span>
+        <h3>Web Search</h3>
+        <p>Tavily-powered search finds YouTube tutorials and ASL resources in real time.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📋</span>
+        <h3>Lesson Plans</h3>
+        <p>Generates structured lesson plans with exercises, weak spot analysis, and next letters to learn.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🏛️</span>
+        <h3>Deaf Culture</h3>
+        <p>Explains ASL grammar, Deaf culture, history, and why ASL is not signed English.</p>
+      </div>
+      <div class="card">
+        <span class="icon">💬</span>
+        <h3>Memory</h3>
+        <p>Chat history persisted in Supabase. Summarizes long conversations to stay within context limits.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 6: Tech Stack ── -->
+  <div class="slide" id="s6">
+    <h2>Tech Stack</h2>
+    <div class="arch" style="margin-bottom: 32px;">
+      <div class="arch-box">React + TypeScript<br/>Vite<br/>Web Speech API</div>
+      <div class="arch-arrow">⟷</div>
+      <div class="arch-box">FastAPI<br/>Python<br/>WebSocket</div>
+      <div class="arch-arrow">⟷</div>
+      <div class="arch-box">MediaPipe<br/>scikit-learn<br/>ML Model</div>
+    </div>
+    <div class="pills">
+      <div class="pill">React 18</div>
+      <div class="pill">TypeScript</div>
+      <div class="pill">Vite</div>
+      <div class="pill">FastAPI</div>
+      <div class="pill">Python 3.11</div>
+      <div class="pill">MediaPipe</div>
+      <div class="pill">scikit-learn</div>
+      <div class="pill">Groq API</div>
+      <div class="pill">llama-3.3-70b</div>
+      <div class="pill">Supabase</div>
+      <div class="pill">Tavily Search</div>
+      <div class="pill">Web Speech API</div>
+      <div class="pill">WebSocket</div>
+      <div class="pill">SVG Animations</div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 7: Architecture ── -->
+  <div class="slide" id="s7">
+    <h2>System Architecture</h2>
+    <div class="grid grid-2" style="max-width:860px;">
+      <div class="card">
+        <h3>Frontend (React)</h3>
+        <p>
+          LandingPage · AuthPage · LearnPage<br/>
+          GamePage · TranslatorPage<br/>
+          AITutorPage · SpellNamePage<br/>
+          <br/>
+          Webcam → WebSocket → Backend<br/>
+          Streaming chat via fetch ReadableStream
+        </p>
+      </div>
+      <div class="card">
+        <h3>Backend (FastAPI)</h3>
+        <p>
+          /ws/{id} — real-time sign recognition<br/>
+          /ws/practice/{id} — letter practice<br/>
+          POST /api/chat — streaming AI<br/>
+          POST /api/chat/greeting<br/>
+          POST /api/chat/history<br/>
+          GET /health
+        </p>
+      </div>
+      <div class="card">
+        <h3>ML Pipeline</h3>
+        <p>
+          MediaPipe Hands → 21 landmarks<br/>
+          → 63 features (x,y,z per point)<br/>
+          → scikit-learn classifier<br/>
+          → letter prediction + confidence
+        </p>
+      </div>
+      <div class="card">
+        <h3>Data Layer (Supabase)</h3>
+        <p>
+          user_progress — letters, scores<br/>
+          chat_history — AI conversation<br/>
+          Row-level security via JWT<br/>
+          Guest mode via localStorage
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 8: Demo Pages ── -->
+  <div class="slide" id="s8">
+    <h2>App Pages</h2>
+    <div class="grid grid-3" style="max-width:900px;">
+      <div class="card">
+        <span class="icon">🏠</span>
+        <h3>Landing Page</h3>
+        <p>Animated floating hands background. Login / guest mode. Navigation to all features.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📖</span>
+        <h3>Learn Mode</h3>
+        <p>Full alphabet grid with animated SVG handshapes. Quiz mode. Practice modal with live camera.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🎮</span>
+        <h3>Sign Sprint</h3>
+        <p>Game with lives, timer, streaks, difficulty levels, daily challenge, and achievements.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🤖</span>
+        <h3>AI Tutor</h3>
+        <p>Streaming chat, quick-reply chips, inline handshape previews, YouTube embeds, lesson cards.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📷</span>
+        <h3>Translator</h3>
+        <p>Live ASL-to-English translation via webcam. Real-time letter accumulation into words.</p>
+      </div>
+      <div class="card">
+        <span class="icon">✍️</span>
+        <h3>Spell Your Name</h3>
+        <p>Type your name, sign each letter via webcam. Celebrates completion with confetti.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 9: What's Next ── -->
+  <div class="slide" id="s9">
+    <h2>What's Next</h2>
+    <div class="grid grid-2" style="max-width:800px;">
+      <div class="card">
+        <span class="icon">🔤</span>
+        <h3>Word & Phrase Recognition</h3>
+        <p>Extend ML model to recognize full ASL words and common phrases, not just letters.</p>
+      </div>
+      <div class="card">
+        <span class="icon">👥</span>
+        <h3>Multiplayer Mode</h3>
+        <p>Sign against friends in real time. Leaderboards and social features.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📱</span>
+        <h3>Mobile App</h3>
+        <p>React Native port for iOS/Android with native camera access.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🌍</span>
+        <h3>Other Sign Languages</h3>
+        <p>BSL, LSF, Auslan — expand beyond ASL to serve global Deaf communities.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLIDE 10: Closing ── -->
+  <div class="slide" id="s10">
+    <div class="pixel-border">
+      <h1>🤟 SignQuest</h1>
+      <p style="font-size:9px; color:#c0c0a0; margin: 20px 0; line-height: 2.4;">
+        Making ASL accessible, engaging,<br/>and genuinely educational<br/>for everyone.
+      </p>
+      <p style="font-size:7px; color:#4a6a18; margin-top: 16px;">
+        github.com/Esomkg/aslTranslator
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Nav controls ── -->
+<div class="nav">
+  <button onclick="prev()">◀ Prev</button>
+  <button onclick="next()">Next ▶</button>
+</div>
+<div class="slide-counter" id="counter">1 / 10</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let cur = 0;
+
+  function show(n) {
+    slides[cur].classList.remove('active');
+    cur = (n + slides.length) % slides.length;
+    slides[cur].classList.add('active');
+    document.getElementById('counter').textContent = `${cur + 1} / ${slides.length}`;
+  }
+
+  function next() { show(cur + 1); }
+  function prev() { show(cur - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') next();
+    if (e.key === 'ArrowLeft') prev();
+  });
+</script>
+</body>
+</html>

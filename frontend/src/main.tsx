@@ -9,6 +9,7 @@ import GamePage from "./pages/GamePage";
 import AuthPage from "./pages/AuthPage";
 import AITutorPage from "./pages/AITutorPage";
 import SpellNamePage from "./pages/SpellNamePage";
+import AboutPage from "./pages/AboutPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/translator" element={<TranslatorPage />} />
           <Route path="/learn" element={<LearnPage />} />

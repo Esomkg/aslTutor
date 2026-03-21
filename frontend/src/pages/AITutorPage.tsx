@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { HandshapeGif } from "../components/HandshapeGif";
 import { LetterPracticeModal } from "../components/LetterPracticeModal";
 
+
 // ─── Web Speech API types ─────────────────────────────────────────────────────
 interface ISpeechRecognition extends EventTarget {
   lang: string;
@@ -80,6 +81,9 @@ function getQuickReplies(lastMsg: string): string[] {
   if (lower.includes("video") || lower.includes("youtube") || lower.includes("resource")) {
     return ["Give me a practice drill", "What should I learn next?", "Show my progress"];
   }
+  if (lower.includes("school") || lower.includes("class") || lower.includes("program") || lower.includes("location") || lower.includes("near")) {
+    return ["Find classes near me", "Show online resources", "What should I practice?"];
+  }
   // Default chips
   return ["Show me the handshape", "Give me a drill", "What's next?"];
 }
@@ -96,6 +100,14 @@ interface MediaResult {
   snippet: string;
   type: "youtube" | "link";
   youtube_id: string | null;
+}
+
+interface MapData {
+  map_query: string;
+  label: string;
+  program_type: string;
+  online_resources: { name: string; url: string; note: string }[];
+  schools?: { name: string; address: string }[];
 }
 
 interface LessonExercise {
@@ -117,20 +129,45 @@ interface LessonPlan {
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
-function parseMessage(content: string): { text: string; media: MediaResult[]; lesson: LessonPlan | null } {
+interface ThinkingEvent {
+  step: "search" | "visit" | "done";
+  query?: string;
+  url?: string;
+  title?: string;
+  sources_found?: number;
+}
+
+function parseThinkingEvents(raw: string): ThinkingEvent[] {
+  const events: ThinkingEvent[] = [];
+  const re = /\[THINKING\]([\s\S]*?)\[\/THINKING\]/g;
+  let m;
+  while ((m = re.exec(raw)) !== null) {
+    try { events.push(JSON.parse(m[1])); } catch { /**/ }
+  }
+  return events;
+}
+
+function parseMessage(content: string): { text: string; media: MediaResult[]; lesson: LessonPlan | null; map: MapData | null } {
   const mediaMatch = content.match(/\[MEDIA\]([\s\S]*?)\[\/MEDIA\]/);
   const lessonMatch = content.match(/\[LESSON\]([\s\S]*?)\[\/LESSON\]/);
+  const mapMatch = content.match(/\[MAP\]([\s\S]*?)\[\/MAP\]/);
   const text = content
+    .replace(/\[THINKING\][\s\S]*?\[\/THINKING\]/g, "")
     .replace(/\[MEDIA\][\s\S]*?\[\/MEDIA\]/, "")
     .replace(/\[LESSON\][\s\S]*?\[\/LESSON\]/, "")
+    .replace(/\[MAP\][\s\S]*?\[\/MAP\]/, "")
+    .replace(/\[THINKING\][\s\S]*$/, "")
     .replace(/\[MEDIA\][\s\S]*$/, "")
     .replace(/\[LESSON\][\s\S]*$/, "")
+    .replace(/\[MAP\][\s\S]*$/, "")
     .trim();
   let media: MediaResult[] = [];
   if (mediaMatch) { try { media = JSON.parse(mediaMatch[1]).results ?? []; } catch { /**/ } }
   let lesson: LessonPlan | null = null;
   if (lessonMatch) { try { lesson = JSON.parse(lessonMatch[1]); } catch { /**/ } }
-  return { text, media, lesson };
+  let map: MapData | null = null;
+  if (mapMatch) { try { map = JSON.parse(mapMatch[1]); } catch { /**/ } }
+  return { text, media, lesson, map };
 }
 
 /** Scan text for the first ASL letter mentioned — used for "Practice now" chip */
@@ -266,13 +303,135 @@ function LessonCard({ lesson, onPractice }: { lesson: LessonPlan; onPractice: (l
   );
 }
 
+// ─── ThinkingPanel ────────────────────────────────────────────────────────────
+function ThinkingPanel({ events, isStreaming }: { events: ThinkingEvent[]; isStreaming: boolean }) {
+  const [collapsed, setCollapsed] = useState(false);
+  if (!events.length) return null;
+
+  const doneEvent = events.find(e => e.step === "done");
+  const visits = events.filter(e => e.step === "visit");
+  const searchEvent = events.find(e => e.step === "search");
+
+  return (
+    <div style={S.thinkingPanel}>
+      <button style={S.thinkingHeader} onClick={() => setCollapsed(v => !v)}>
+        <span style={S.thinkingIcon}>{isStreaming && !doneEvent ? "⟳" : "🌐"}</span>
+        <span style={S.thinkingTitle}>
+          {doneEvent
+            ? `Searched web · ${doneEvent.sources_found} sources`
+            : isStreaming
+            ? "Browsing the web..."
+            : "Web search"}
+        </span>
+        <span style={S.thinkingChevron}>{collapsed ? "▶" : "▼"}</span>
+      </button>
+      {!collapsed && (
+        <div style={S.thinkingBody}>
+          {searchEvent && (
+            <div style={S.thinkingStep}>
+              <span style={S.thinkingStepIcon}>🔍</span>
+              <span style={S.thinkingStepText}>Searching: <em>{searchEvent.query}</em></span>
+            </div>
+          )}
+          {visits.map((v, i) => (
+            <div key={i} style={S.thinkingStep}>
+              <span style={S.thinkingStepIcon}>📄</span>
+              <a href={v.url} target="_blank" rel="noopener noreferrer" style={S.thinkingLink}>
+                {v.title || v.url}
+              </a>
+            </div>
+          ))}
+          {isStreaming && !doneEvent && (
+            <div style={S.thinkingStep}>
+              <span style={S.thinkingStepIcon}>⟳</span>
+              <span style={{ ...S.thinkingStepText, color: "#606040" }}>Reading pages...</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+function MapBlock({ data }: { data: MapData }) {
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState<string | null>(null);
+  const [mapSrc, setMapSrc] = useState<string | null>(null);
+  const [openUrl, setOpenUrl] = useState("https://www.google.com/maps/search/ASL+sign+language+classes+near+me");
+
+  function requestLocation() {
+    if (!navigator.geolocation) { setLocError("Geolocation not supported by your browser."); return; }
+    setLocating(true); setLocError(null);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const q = encodeURIComponent("ASL sign language classes");
+        // Search embed centered on user's real coordinates — shows nearby pins
+        setMapSrc(`https://maps.google.com/maps?q=${q}&near=${lat},${lng}&z=13&output=embed`);
+        setOpenUrl(`https://www.google.com/maps/search/ASL+sign+language+classes/@${lat},${lng},13z`);
+        setLocating(false);
+      },
+      () => { setLocError("Couldn't get your location. Allow location access and try again."); setLocating(false); },
+      { timeout: 10000 },
+    );
+  }
+
+  return (
+    <div style={S.mapBlock}>
+      <div style={S.mapHeader}>📍 {data.label}</div>
+
+      {!mapSrc && (
+        <div style={S.directionsBar}>
+          <div style={S.schoolListTitle}>Share your location to find nearby ASL classes:</div>
+          <div style={S.locRow}>
+            <button style={S.locBtn} onClick={requestLocation} disabled={locating}>
+              {locating ? "Locating..." : "📡 Find classes near me"}
+            </button>
+          </div>
+          {locError && <div style={S.locError}>{locError}</div>}
+        </div>
+      )}
+
+      {mapSrc && (
+        <>
+          <iframe
+            src={mapSrc}
+            title="ASL classes near you"
+            style={S.mapIframe}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            allowFullScreen
+          />
+          <div style={S.locRow2}>
+            <button style={S.locClear} onClick={() => { setMapSrc(null); setLocError(null); }}>🔄 Re-locate</button>
+            <a href={openUrl} target="_blank" rel="noopener noreferrer" style={S.openMapsBtn}>↗ Open in Google Maps</a>
+          </div>
+        </>
+      )}
+
+      {data.online_resources && data.online_resources.length > 0 && (
+        <div style={S.mapResources}>
+          <div style={S.mapResourcesTitle}>🌐 Online Resources</div>
+          {data.online_resources.map(r => (
+            <div key={r.url} style={S.mapResourceRow}>
+              <a href={r.url} target="_blank" rel="noopener noreferrer" style={S.mapResourceLink}>{r.name}</a>
+              <span style={S.mapResourceNote}>{r.note}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SUGGESTIONS = [
   "What should I practice next?",
   "Show me my progress stats",
   "How do I sign the letter R?",
   "What letters do I struggle with?",
-  "Find me YouTube videos for learning ASL",
+  "Find ASL classes near me",
   "Give me a 5-minute practice drill",
 ];
 
@@ -293,6 +452,9 @@ export default function AITutorPage() {
   const [loading, setLoading] = useState(false);
   const [greetingLoading, setGreetingLoading] = useState(true);
   const [practiceModal, setPracticeModal] = useState<string | null>(null);
+  const [showBrowsing, setShowBrowsing] = useState<boolean>(() => {
+    try { return localStorage.getItem("showBrowsing") === "true"; } catch { return false; }
+  });
   // Voice input state
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -371,6 +533,7 @@ export default function AITutorPage() {
           practiced_letters: practicedLetters.length > 0 ? practicedLetters : null,
           missed_letters: missedLetters.length > 0 ? missedLetters : null,
           user_jwt: session?.access_token ?? null,
+          show_browsing: showBrowsing,
         }),
       });
       if (!res.ok || !res.body) throw new Error("Request failed");
@@ -453,6 +616,17 @@ export default function AITutorPage() {
         {practicedLetters.length > 0 && (
           <div style={S.progressBadge}>{practicedLetters.length}/26 letters practiced</div>
         )}
+        <button
+          style={{ ...S.browsingToggle, ...(showBrowsing ? S.browsingToggleOn : {}) }}
+          onClick={() => {
+            const next = !showBrowsing;
+            setShowBrowsing(next);
+            try { localStorage.setItem("showBrowsing", String(next)); } catch { /**/ }
+          }}
+          title="Show live web browsing activity when the AI searches the web"
+        >
+          🌐 {showBrowsing ? "Browsing: ON" : "Browsing: OFF"}
+        </button>
       </div>
 
       <div style={S.chatArea}>
@@ -466,11 +640,11 @@ export default function AITutorPage() {
         {messages.map((msg, i) => {
           const isStreaming = loading && i === messages.length - 1;
           const stripped = isStreaming
-            ? msg.content.replace(/\[MEDIA\][\s\S]*$/, "").replace(/\[LESSON\][\s\S]*$/, "").trim()
+            ? msg.content.replace(/\[MEDIA\][\s\S]*$/, "").replace(/\[LESSON\][\s\S]*$/, "").replace(/\[MAP\][\s\S]*$/, "").trim()
             : msg.content;
-          const { text, media, lesson } = msg.role === "assistant"
+          const { text, media, lesson, map } = msg.role === "assistant"
             ? parseMessage(stripped)
-            : { text: msg.content, media: [], lesson: null };
+            : { text: msg.content, media: [], lesson: null, map: null };
 
           return (
             <div key={i} style={{ ...S.bubble, ...(msg.role === "user" ? S.userBubble : S.aiBubble) }}>
@@ -482,8 +656,15 @@ export default function AITutorPage() {
                   ? renderTextWithLetterTags(text, openPractice)
                   : isStreaming ? <span style={S.cursor}>▋</span> : ""}
               </div>
+              {showBrowsing && msg.role === "assistant" && (
+                <ThinkingPanel
+                  events={parseThinkingEvents(msg.content)}
+                  isStreaming={isStreaming}
+                />
+              )}
               {!isStreaming && <MediaBlock media={media} />}
               {!isStreaming && lesson && <LessonCard lesson={lesson} onPractice={openPractice} />}
+              {!isStreaming && map && <MapBlock data={map} />}
             </div>
           );
         })}
@@ -637,6 +818,44 @@ const S: Record<string, React.CSSProperties> = {
     fontFamily: "'Press Start 2P', monospace", cursor: "pointer",
     lineHeight: 1.8, boxShadow: "inset -2px -2px 0 #1a2a04",
   },
+  // Browsing toggle
+  browsingToggle: {
+    padding: "4px 8px", fontSize: 6,
+    background: "#1a1a08", color: "#505040",
+    border: "2px solid #3a3a18", cursor: "pointer",
+    fontFamily: "'Press Start 2P', monospace", whiteSpace: "nowrap" as const,
+  },
+  browsingToggleOn: {
+    background: "#1a2a08", color: "#a0d040",
+    border: "2px solid #5a8a1a",
+  },
+  // Thinking panel
+  thinkingPanel: {
+    marginTop: 6, border: "2px solid #3a4a18",
+    background: "#111408", overflow: "hidden",
+  },
+  thinkingHeader: {
+    width: "100%", display: "flex", alignItems: "center", gap: 6,
+    padding: "6px 10px", background: "transparent", border: "none",
+    cursor: "pointer", fontFamily: "'Press Start 2P', monospace",
+    textAlign: "left" as const,
+  },
+  thinkingIcon: { fontSize: 10 },
+  thinkingTitle: { flex: 1, fontSize: 6, color: "#808060", lineHeight: 1.8 },
+  thinkingChevron: { fontSize: 6, color: "#505040" },
+  thinkingBody: {
+    padding: "4px 10px 8px",
+    display: "flex", flexDirection: "column" as const, gap: 4,
+    borderTop: "1px solid #2a3a0a",
+  },
+  thinkingStep: { display: "flex", alignItems: "flex-start", gap: 6, fontSize: 6, lineHeight: 1.8 },
+  thinkingStepIcon: { flexShrink: 0, fontSize: 8 },
+  thinkingStepText: { color: "#808060", fontFamily: "'Press Start 2P', monospace" },
+  thinkingLink: {
+    color: "#a0d040", textDecoration: "none",
+    fontFamily: "'Press Start 2P', monospace", fontSize: 6,
+    wordBreak: "break-all" as const, lineHeight: 1.8,
+  },
   // Voice error
   voiceError: {
     margin: "0 16px 4px", padding: "6px 10px", fontSize: 7,
@@ -737,4 +956,104 @@ const S: Record<string, React.CSSProperties> = {
   },
   linkCardContent: { borderTop: "2px solid #2a2a14", padding: "10px 12px", background: "#141408" },
   linkCardSnippet: { fontSize: 7, color: "#c0c0a0", lineHeight: 2, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const },
+  // Map block
+  mapBlock: {
+    marginTop: 8, background: "#141408", border: "2px solid #4a6a18",
+    display: "flex", flexDirection: "column" as const, overflow: "hidden",
+  },
+  mapHeader: {
+    padding: "8px 12px", fontSize: 7, color: "#a0d040",
+    background: "#1a2a08", borderBottom: "2px solid #3a5010",
+    letterSpacing: 0.5,
+  },
+  // School picker
+  schoolList: {
+    padding: "8px 12px", borderBottom: "2px solid #2a3a0a",
+    display: "flex", flexDirection: "column" as const, gap: 4,
+  },
+  schoolListTitle: { fontSize: 6, color: "#808060", letterSpacing: 0.5, marginBottom: 2 },
+  schoolBtn: {
+    display: "flex", flexDirection: "column" as const, gap: 2,
+    padding: "6px 10px", background: "#1a1a08",
+    border: "2px solid #3a3a18", cursor: "pointer", textAlign: "left" as const,
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  schoolBtnActive: {
+    background: "#1a2a08", border: "2px solid #5a8a1a",
+    boxShadow: "inset -2px -2px 0 #0a1a04",
+  },
+  schoolBtnName: { fontSize: 7, color: "#a0d040", lineHeight: 1.8 },
+  schoolBtnAddr: { fontSize: 6, color: "#606040", lineHeight: 1.6 },
+  // Directions bar
+  directionsBar: {
+    padding: "8px 12px", borderBottom: "2px solid #2a3a0a",
+    display: "flex", flexDirection: "column" as const, gap: 6,
+  },
+  travelModes: { display: "flex", gap: 6 },
+  travelBtn: {
+    flex: 1, padding: "5px 4px", fontSize: 6,
+    background: "#1a1a08", color: "#808060",
+    border: "2px solid #3a3a18", cursor: "pointer",
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  travelBtnActive: {
+    background: "#2a3a0a", color: "#a0d040",
+    border: "2px solid #5a8a1a",
+  },
+  // Location row
+  locRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const },
+  locRow2: { display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderTop: "2px solid #2a3a0a" },
+  locBtn: {
+    padding: "5px 8px", fontSize: 6, background: "#2a2a14",
+    color: "#a0a060", border: "2px solid #4a4a20",
+    cursor: "pointer", fontFamily: "'Press Start 2P', monospace",
+    whiteSpace: "nowrap" as const,
+  },
+  locOr: { fontSize: 6, color: "#505040" },
+  locInput: {
+    flex: 1, minWidth: 100, padding: "5px 8px", fontSize: 6,
+    background: "#1a1a08", color: "#f0f0e0",
+    border: "2px solid #3a3a18", outline: "none",
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  locSet: { fontSize: 6, color: "#a0d040" },
+  locClear: {
+    padding: "4px 8px", fontSize: 6, background: "#1a1a08",
+    color: "#808060", border: "2px solid #3a3a18",
+    cursor: "pointer", fontFamily: "'Press Start 2P', monospace",
+  },
+  locError: { fontSize: 6, color: "#e05050", lineHeight: 1.8 },
+  // Route summary
+  routeStatus: { fontSize: 6, color: "#808060", lineHeight: 1.8, fontStyle: "italic" as const },
+  routeSummary: {
+    display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const,
+    padding: "5px 8px", background: "#1a2a08", border: "2px solid #3a5010",
+    fontSize: 7,
+  },
+  routeIcon: { fontSize: 14 },
+  routeDetail: { color: "#a0d040" },
+  routeSep: { color: "#505040" },
+  routeNote: { fontSize: 6, color: "#606040" },
+  // Map iframe
+  mapWrap: { width: "100%", height: 320 },
+  mapIframe: { width: "100%", height: 320, border: "none", display: "block" },
+  // Open in Google Maps button
+  openMapsBtn: {
+    display: "block", padding: "8px 12px", fontSize: 7,
+    background: "#2a3a0a", color: "#a0d040",
+    border: "none", borderTop: "2px solid #3a5010",
+    textDecoration: "none", textAlign: "center" as const,
+    fontFamily: "'Press Start 2P', monospace", cursor: "pointer",
+  },
+  mapResources: {
+    padding: "10px 12px", borderTop: "2px solid #2a3a0a",
+    display: "flex", flexDirection: "column" as const, gap: 6,
+  },
+  mapResourcesTitle: { fontSize: 7, color: "#808060", letterSpacing: 0.5, marginBottom: 2 },
+  mapResourceRow: { display: "flex", flexDirection: "column" as const, gap: 2 },
+  mapResourceLink: {
+    fontSize: 7, color: "#a0d040", textDecoration: "none",
+    fontFamily: "'Press Start 2P', monospace",
+  },
+  mapResourceNote: { fontSize: 6, color: "#606040", lineHeight: 1.8 },
 };

@@ -32,6 +32,7 @@ export default function LandingPage() {
           </div>
         )}
         <div style={{ flex: 1 }} />
+        <button style={S.authBtn} onClick={() => go("/about")}>About</button>
         {user ? (
           <>
             <span style={S.userLabel}>{user.email}</span>

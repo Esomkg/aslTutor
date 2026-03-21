@@ -460,6 +460,117 @@ const LETTERS: Record<string, () => JSX.Element> = {
       <path d="M26,14 L46,14 L26,30 L46,30" fill="none" stroke="#a0d040" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </g>
   ),
+
+  // ── Number signs ────────────────────────────────────────────────────────────
+  "1": () => (
+    <g>
+      <Palm />
+      <Finger cx={42} tipY={8} baseY={64} w={14} />
+      <BentFinger cx={18} baseY={64} bendX={18} bendY={50} tipX={22} tipY={58} />
+      <BentFinger cx={32} baseY={64} bendX={32} bendY={48} tipX={36} tipY={57} />
+      <BentFinger cx={57} baseY={64} bendX={57} bendY={48} tipX={60} tipY={57} />
+      <BentFinger cx={72} baseY={64} bendX={72} bendY={50} tipX={74} tipY={58} />
+      <Thumb cx={8} cy={72} angle={-20} len={26} w={13} />
+    </g>
+  ),
+
+  "2": () => (
+    <g>
+      <Palm />
+      <Finger cx={35} tipY={8} baseY={64} w={13} />
+      <Finger cx={52} tipY={8} baseY={64} w={13} />
+      <BentFinger cx={18} baseY={64} bendX={18} bendY={50} tipX={22} tipY={58} />
+      <BentFinger cx={66} baseY={64} bendX={66} bendY={50} tipX={68} tipY={58} />
+      <Thumb cx={8} cy={72} angle={-20} len={26} w={13} />
+    </g>
+  ),
+
+  "3": () => (
+    <g>
+      <Palm />
+      <Finger cx={28} tipY={8} baseY={64} w={13} />
+      <Finger cx={44} tipY={8} baseY={64} w={13} />
+      <Finger cx={60} tipY={10} baseY={64} w={12} />
+      <BentFinger cx={18} baseY={64} bendX={18} bendY={50} tipX={22} tipY={58} />
+      <BentFinger cx={74} baseY={64} bendX={74} bendY={52} tipX={76} tipY={60} />
+      {/* Thumb out */}
+      <rect x={2} y={58} width={30} height={12} rx={6} fill={C.skin} stroke={C.line} strokeWidth="1.2" />
+    </g>
+  ),
+
+  "4": () => (
+    <g>
+      <Palm />
+      <Finger cx={18} tipY={12} baseY={64} w={13} />
+      <Finger cx={32} tipY={8} baseY={64} w={13} />
+      <Finger cx={47} tipY={8} baseY={64} w={13} />
+      <Finger cx={62} tipY={12} baseY={64} w={12} />
+      {/* Thumb tucked */}
+      <rect x={10} y={64} width={26} height={11} rx={5} fill={C.skin} stroke={C.line} strokeWidth="1.2" />
+    </g>
+  ),
+
+  "5": () => (
+    <g>
+      <Palm />
+      <Finger cx={18} tipY={12} baseY={64} w={13} />
+      <Finger cx={32} tipY={8} baseY={64} w={14} />
+      <Finger cx={47} tipY={8} baseY={64} w={14} />
+      <Finger cx={62} tipY={12} baseY={64} w={13} />
+      <Thumb cx={6} cy={72} angle={-15} len={30} w={14} />
+    </g>
+  ),
+
+  "6": () => (
+    <g>
+      <Palm />
+      <Finger cx={18} tipY={12} baseY={64} w={13} />
+      <Finger cx={32} tipY={8} baseY={64} w={14} />
+      <Finger cx={47} tipY={8} baseY={64} w={14} />
+      {/* Pinky touches thumb */}
+      <circle cx={62} cy={62} r={10} fill="none" stroke={C.skin} strokeWidth="10" />
+      <circle cx={62} cy={62} r={10} fill="none" stroke={C.line} strokeWidth="1.5" />
+      <Thumb cx={6} cy={72} angle={-15} len={30} w={14} />
+    </g>
+  ),
+
+  "7": () => (
+    <g>
+      <Palm />
+      <Finger cx={18} tipY={12} baseY={64} w={13} />
+      <Finger cx={32} tipY={8} baseY={64} w={14} />
+      {/* Ring touches thumb */}
+      <circle cx={47} cy={62} r={10} fill="none" stroke={C.skin} strokeWidth="10" />
+      <circle cx={47} cy={62} r={10} fill="none" stroke={C.line} strokeWidth="1.5" />
+      <Finger cx={62} tipY={12} baseY={64} w={13} />
+      <Thumb cx={6} cy={72} angle={-15} len={30} w={14} />
+    </g>
+  ),
+
+  "8": () => (
+    <g>
+      <Palm />
+      <Finger cx={18} tipY={12} baseY={64} w={13} />
+      {/* Middle touches thumb */}
+      <circle cx={32} cy={62} r={10} fill="none" stroke={C.skin} strokeWidth="10" />
+      <circle cx={32} cy={62} r={10} fill="none" stroke={C.line} strokeWidth="1.5" />
+      <Finger cx={47} tipY={8} baseY={64} w={14} />
+      <Finger cx={62} tipY={12} baseY={64} w={13} />
+      <Thumb cx={6} cy={72} angle={-15} len={30} w={14} />
+    </g>
+  ),
+
+  "9": () => (
+    <g>
+      <Palm />
+      {/* Index touches thumb — like F/O */}
+      <circle cx={24} cy={56} r={12} fill="none" stroke={C.skin} strokeWidth="12" />
+      <circle cx={24} cy={56} r={12} fill="none" stroke={C.line} strokeWidth="1.5" />
+      <Finger cx={47} tipY={8} baseY={64} w={14} />
+      <Finger cx={62} tipY={12} baseY={64} w={13} />
+      <Finger cx={76} tipY={18} baseY={64} w={12} />
+    </g>
+  ),
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────

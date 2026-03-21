@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { LetterPracticeModal } from "../components/LetterPracticeModal";
 import { HandshapeGif } from "../components/HandshapeGif";
-import { getPracticedLetters, markLetterPracticed, unlockAchievement, recordPracticeToday } from "../utils/storage";
+import { getPracticedLetters, markLetterPracticed, unlockAchievement, recordPracticeToday, getPracticedNumbers, markNumberPracticed, recordNumberResult, getNumberStats, NumberStatEntry } from "../utils/storage";
 import { AchievementToast } from "../components/AchievementToast";
 import { ALL_ACHIEVEMENTS, Achievement } from "../utils/storage";
 
@@ -36,7 +36,19 @@ const ASL_ALPHABET: { letter: string; description: string; emoji: string }[] = [
   { letter: "Z", emoji: "☝️", description: "Index finger traces a Z shape in the air." },
 ];
 
-type LearnTab = "browse" | "quiz";
+const ASL_NUMBERS: { digit: string; description: string }[] = [
+  { digit: "1", description: "Index finger points up, all other fingers curled." },
+  { digit: "2", description: "Index and middle fingers up (like V/peace sign)." },
+  { digit: "3", description: "Thumb, index, and middle fingers extended." },
+  { digit: "4", description: "Four fingers up, thumb tucked across palm." },
+  { digit: "5", description: "All five fingers spread open — open palm." },
+  { digit: "6", description: "Pinky and thumb touch, other three fingers up." },
+  { digit: "7", description: "Ring finger and thumb touch, other fingers up." },
+  { digit: "8", description: "Middle finger and thumb touch, other fingers up." },
+  { digit: "9", description: "Index finger and thumb touch (like F), other fingers up." },
+];
+
+type LearnTab = "browse" | "numbers" | "quiz";
 type Filter = "all" | "practiced" | "unpracticed";
 
 const QUIZ_LENGTH = 10;
@@ -76,10 +88,16 @@ export default function LearnPage() {
   const [selected, setSelected] = useState<typeof ASL_ALPHABET[0] | null>(null);
   const [practicing, setPracticing] = useState<typeof ASL_ALPHABET[0] | null>(null);
   const [practiced, setPracticed] = useState<Set<string>>(getPracticedLetters());
+  const [practicedNumbers, setPracticedNumbers] = useState<Set<string>>(getPracticedNumbers());
+  const [numberStats, setNumberStats] = useState<Record<string, NumberStatEntry>>(getNumberStats());
 
   // Re-read practiced letters when page gains focus (e.g. returning from AITutorPage)
   useEffect(() => {
-    const refresh = () => setPracticed(getPracticedLetters());
+    const refresh = () => {
+      setPracticed(getPracticedLetters());
+      setPracticedNumbers(getPracticedNumbers());
+      setNumberStats(getNumberStats());
+    };
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
   }, []);
@@ -177,6 +195,7 @@ export default function LearnPage() {
       {/* Tabs */}
       <div style={S.tabRow}>
         <button className="mc-btn" style={{ ...S.tab, ...(tab === "browse" ? S.tabActive : {}) }} onClick={() => setTab("browse")}>Browse</button>
+        <button className="mc-btn" style={{ ...S.tab, ...(tab === "numbers" ? S.tabActive : {}) }} onClick={() => setTab("numbers")}>Numbers</button>
         <button className="mc-btn" style={{ ...S.tab, ...(tab === "quiz" ? S.tabActive : {}) }} onClick={() => { setTab("quiz"); if (!quiz) startQuiz(); }}>Quiz Mode</button>
       </div>
 
@@ -246,6 +265,85 @@ export default function LearnPage() {
           Tip: ASL fingerspelling is used to spell out names and words that don't have their own sign.
         </div>
       </>}
+
+      {/* NUMBERS TAB */}
+      {tab === "numbers" && (
+        <div style={{ width: "100%", maxWidth: 700, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontSize: 7, color: "#808060", lineHeight: 2 }}>
+            ASL numbers 1–9 — recognized by the camera in Practice mode.
+          </div>
+          {/* Numbers progress bar */}
+          <div style={S.progressWrap}>
+            <div style={S.progressLabel}>Progress: {practicedNumbers.size}/9 numbers practiced ({Math.round((practicedNumbers.size / 9) * 100)}%)</div>
+            <div style={S.progressTrack}>
+              <div style={{ ...S.progressFill, width: Math.round((practicedNumbers.size / 9) * 100) + "%" }} />
+            </div>
+          </div>
+          {/* Correct count summary */}
+          {Object.keys(numberStats).length > 0 && (
+            <div style={{ fontSize: 7, color: "#808060", lineHeight: 2 }}>
+              Total correct sessions: {Object.values(numberStats).reduce((s, v) => s + v.correct, 0)} &nbsp;|&nbsp;
+              Total attempts: {Object.values(numberStats).reduce((s, v) => s + v.attempts, 0)}
+            </div>
+          )}
+          <div style={S.grid}>
+            {ASL_NUMBERS.map(item => {
+              const stat = numberStats[item.digit];
+              const correctCount = stat?.correct ?? 0;
+              return (
+                <button
+                  key={item.digit}
+                  className="mc-btn"
+                  style={{
+                    ...S.letterCard,
+                    ...(selected?.letter === item.digit ? S.letterCardActive : {}),
+                    ...(practicedNumbers.has(item.digit) ? S.letterCardPracticed : {}),
+                  }}
+                  onClick={() => setSelected(selected?.letter === item.digit ? null : { letter: item.digit, description: item.description, emoji: item.digit })}
+                  aria-label={`ASL number ${item.digit}`}
+                >
+                  <span style={S.emoji}><HandshapeGif letter={item.digit} size={36} animate={selected?.letter === item.digit} /></span>
+                  <span style={S.letter}>{item.digit}</span>
+                  {practicedNumbers.has(item.digit) && <span style={S.checkmark}>✓</span>}
+                  {correctCount > 0 && (
+                    <span style={S.correctBadge}>{correctCount}✓</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {selected && ASL_NUMBERS.some(n => n.digit === selected.letter) && (
+            <div style={S.detail}>
+              <div style={S.detailEmoji}><HandshapeGif letter={selected.letter} size={64} animate /></div>
+              <div style={S.detailContent}>
+                <h2 style={S.detailLetter}>Number {selected.letter}</h2>
+                <p style={S.detailDesc}>{selected.description}</p>
+                <button className="mc-btn" style={S.practiceBtn} onClick={() => setPracticing(selected)}>
+                  Practice with Camera
+                </button>
+              </div>
+            </div>
+          )}
+
+          {practicing && ASL_NUMBERS.some(n => n.digit === practicing.letter) && (
+            <LetterPracticeModal
+              letter={practicing.letter}
+              description={practicing.description}
+              emoji={practicing.letter}
+              onClose={() => setPracticing(null)}
+              onComplete={(digit) => {
+                markNumberPracticed(digit);
+                recordNumberResult(digit, true);
+                recordPracticeToday();
+                setPracticedNumbers(getPracticedNumbers());
+                setNumberStats(getNumberStats());
+                schedulePush();
+                setPracticing(null);
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {/* QUIZ TAB */}
       {tab === "quiz" && quiz && quiz.done && (
@@ -330,6 +428,7 @@ const S: Record<string, React.CSSProperties> = {
   letterCardActive: { background: "#2a3a0a", border: "3px solid #8ab828", boxShadow: "inset -2px -2px 0 #1a2a04, inset 2px 2px 0 rgba(255,255,255,0.1)" },
   letterCardPracticed: { borderColor: "#5a8a1a" },
   checkmark: { position: "absolute", top: 3, right: 5, fontSize: 8, color: "#a0d040" },
+  correctBadge: { position: "absolute", bottom: 3, right: 4, fontSize: 6, color: "#f0c030", background: "#2a2a08", padding: "1px 3px", border: "1px solid #5a5010" },
   emoji: { fontSize: 20 },
   letter: { fontSize: 14, fontWeight: 400, color: "#f0f0e0" },
   detail: { width: "100%", maxWidth: 700, background: "#2a3a0a", border: "3px solid #5a8a1a", boxShadow: "inset -3px -3px 0 #1a2a04, inset 3px 3px 0 rgba(255,255,255,0.08)", padding: "20px 24px", display: "flex", alignItems: "center", gap: 20 },

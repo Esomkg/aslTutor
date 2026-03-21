@@ -1,12 +1,13 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AchievementToast } from "../components/AchievementToast";
+import { MinecraftCompletion } from "../components/MinecraftCompletion";
 import { useAuth } from "../context/AuthContext";
 import {
   ScoreEntry, Achievement,
   getAchievements, unlockAchievement, ALL_ACHIEVEMENTS,
   getDailyChallenge, saveDailyChallenge, DailyChallenge,
-  KEYS, recordPracticeToday,
+  KEYS, recordPracticeToday, recordGameResult, getMissedLetters,
 } from "../utils/storage";
 import { playCorrect, playWrong, playAchievement, playStreak, playClick } from "../utils/sounds";
 
@@ -28,7 +29,16 @@ const DIFF_CONFIG: Record<Difficulty, { time: number; wordTime: number; label: s
 
 function pickLetter(exclude?: string): string {
   const pool = LETTERS.filter(l => l !== exclude);
-  return pool[Math.floor(Math.random() * pool.length)];
+  // Spaced repetition: weight missed letters 3x more likely to appear
+  const missData = getMissedLetters();
+  const missMap: Record<string, number> = {};
+  for (const m of missData) missMap[m.letter] = m.misses;
+  const weighted: string[] = [];
+  for (const l of pool) {
+    const weight = 1 + Math.min((missMap[l] ?? 0) * 2, 6); // max 7x weight
+    for (let i = 0; i < weight; i++) weighted.push(l);
+  }
+  return weighted[Math.floor(Math.random() * weighted.length)];
 }
 function pickWord(): string {
   return WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -140,6 +150,7 @@ export default function GamePage() {
   const [highScores, setHighScores] = useState<ScoreEntry[]>(getScores());
   const [achievements, setAchievements] = useState<Achievement[]>(getAchievements());
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
+  const [showCompletion, setShowCompletion] = useState(false);
   const [daily, setDaily] = useState<DailyChallenge>(getDailyChallenge());
   const [dailyIdx, setDailyIdx] = useState(0);
   const [tab, setTab] = useState<"modes" | "achievements">("modes");
@@ -355,8 +366,11 @@ export default function GamePage() {
     const label = mode === "word" ? "Word Mode" : mode === "daily" ? "Daily" : "Sprint";
     saveScore({ score: finalScore, mode: label, date: new Date().toLocaleDateString(), difficulty: diff });
     setHighScores(getScores());
+    recordGameResult(resultsRef.current);
     recordPracticeToday();
     schedulePush();
+    setShowCompletion(true);
+    setTimeout(() => setShowCompletion(false), 3500);
     setPhase("result");
   }
 
@@ -385,6 +399,12 @@ export default function GamePage() {
   return (
     <div style={S.page}>
       <AchievementToast achievement={newAchievement} onDone={() => setNewAchievement(null)} />
+      <MinecraftCompletion
+        show={showCompletion}
+        title="Challenge Complete!"
+        subtitle={`Score: ${score} pts`}
+        icon="⚔️"
+      />
 
       <div style={S.topBar}>
         <McBtn color="stone" onClick={() => navigate("/")}>Back</McBtn>
@@ -548,6 +568,17 @@ export default function GamePage() {
               </span>
             ))}
           </div>
+          {results.filter(r => !r.success).length > 0 && (
+            <div style={S.weakBox}>
+              <div style={S.weakTitle}>⚠ Letters to work on</div>
+              <div style={S.weakRow}>
+                {[...new Set(results.filter(r => !r.success).map(r => r.letter))].map(l => (
+                  <span key={l} style={S.weakBadge}>{l}</span>
+                ))}
+              </div>
+              <div style={S.weakHint}>These will appear more often in your next game.</div>
+            </div>
+          )}
           {highScores.length > 0 && (
             <div style={S.leaderboard}>
               <div style={S.lbTitle}>[ High Scores ]</div>
@@ -622,4 +653,9 @@ const S: Record<string, React.CSSProperties> = {
   statLbl: { fontSize: 7, color: "#606040", marginTop: 4 },
   resultLetters: { display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center" },
   resultBadge: { padding: "4px 8px", fontSize: 10, fontWeight: 400 },
+  weakBox: { width: "100%", background: "#2a1a08", border: "2px solid #8a4a1a", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 },
+  weakTitle: { fontSize: 7, color: "#f0a030", letterSpacing: 1 },
+  weakRow: { display: "flex", flexWrap: "wrap" as const, gap: 4 },
+  weakBadge: { background: "#3a1a08", border: "2px solid #8a4a1a", color: "#f0a030", padding: "4px 10px", fontSize: 10 },
+  weakHint: { fontSize: 6, color: "#806040", lineHeight: 1.8 },
 };

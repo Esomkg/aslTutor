@@ -1,4 +1,6 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
+import { MinecraftCompletion } from "./MinecraftCompletion";
+import { playAchievement } from "../utils/sounds";
 
 const REQUIRED = 5;
 const WS_BASE = "ws://localhost:8000";
@@ -26,11 +28,23 @@ export function LetterPracticeModal({ letter, description, emoji, onClose, onCom
   const [detected, setDetected] = useState<string | null>(null);
   const hitsRef = useRef(0);
 
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const wrongStreakRef = useRef(0);
+  const lastFeedbackRef = useRef(0);
+  const [showCompletion, setShowCompletion] = useState(false);
+
+  const isNumber = /^\d$/.test(letter);
+  const kind = isNumber ? "Number" : "Letter";
+  const kindLower = isNumber ? "number" : "letter";
+
   const reset = useCallback(() => {
     hitsRef.current = 0;
     setHits(0);
     setDone(false);
     setDetected(null);
+    setAiFeedback(null);
+    wrongStreakRef.current = 0;
   }, []);
 
   useEffect(() => {
@@ -55,10 +69,32 @@ export function LetterPracticeModal({ letter, description, emoji, onClose, onCom
             if (dl === letter) {
               hitsRef.current = Math.min(hitsRef.current + 1, REQUIRED);
               setHits(hitsRef.current);
-              if (hitsRef.current >= REQUIRED) setDone(true);
+              if (hitsRef.current >= REQUIRED) {
+                setDone(true);
+                setAiFeedback(null);
+                playAchievement();
+                setShowCompletion(true);
+                setTimeout(() => setShowCompletion(false), 3500);
+              }
+              wrongStreakRef.current = 0;
             } else {
               hitsRef.current = Math.max(0, hitsRef.current - 1);
               setHits(hitsRef.current);
+              wrongStreakRef.current += 1;
+              const now = Date.now();
+              if (wrongStreakRef.current >= 15 && now - lastFeedbackRef.current > 8000) {
+                lastFeedbackRef.current = now;
+                wrongStreakRef.current = 0;
+                setFeedbackLoading(true);
+                fetch("http://localhost:8000/api/gesture-feedback", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ target_letter: letter, detected_letter: dl, confidence: data.confidence ?? 0 }),
+                }).then(r => r.json()).then(d => {
+                  setAiFeedback(d.tip);
+                  setFeedbackLoading(false);
+                }).catch(() => setFeedbackLoading(false));
+              }
             }
           } catch (_) {}
         };
@@ -101,41 +137,60 @@ export function LetterPracticeModal({ letter, description, emoji, onClose, onCom
   const pct = (hits / REQUIRED) * 100;
 
   return (
-    <div style={S.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={S.modal}>
-        <div style={S.header}>
-          <span>{emoji} Letter {letter}</span>
-          <button style={S.closeBtn} onClick={onClose}>X</button>
-        </div>
-        <p style={S.desc}>{description}</p>
-        <div style={S.videoWrap}>
-          <video ref={videoRef} style={S.video} muted playsInline />
-          <canvas ref={canvasRef} style={S.canvas} />
-          {status === "loading" && <div style={S.overlayMsg}><div style={S.spinner} /><span>Loading camera...</span></div>}
-          {status === "error" && <div style={S.overlayMsg}><span style={{ color: "#f87171", textAlign: "center", padding: "0 16px" }}>{errMsg}</span></div>}
-          {done && (
-            <div style={S.successOverlay}>
-              <div style={S.successBox}>
-                <div style={{ fontSize: 40 }}></div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#4ade80" }}>Great job!</div>
-                <div style={{ color: "#ccc", fontSize: 13 }}>You signed letter {letter} correctly!</div>
-                <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
-                  <button style={S.tryAgain} onClick={reset}>Try Again</button>
-                  <button style={S.doneBtn} onClick={() => { onComplete?.(letter); onClose(); }}>Done </button>
+    <>
+      <MinecraftCompletion
+        show={showCompletion}
+        title={`${kind} ${letter} Mastered!`}
+        subtitle="Sign learned - keep it up!"
+        icon={emoji}
+      />
+      <div style={S.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div style={S.modal}>
+          <div style={S.header}>
+            <span>{emoji} {kind} {letter}</span>
+            <button style={S.closeBtn} onClick={onClose}>X</button>
+          </div>
+          <p style={S.desc}>{description}</p>
+          <div style={S.videoWrap}>
+            <video ref={videoRef} style={S.video} muted playsInline />
+            <canvas ref={canvasRef} style={S.canvas} />
+            {status === "loading" && <div style={S.overlayMsg}><div style={S.spinner} /><span>Loading camera...</span></div>}
+            {status === "error" && <div style={S.overlayMsg}><span style={{ color: "#f87171", textAlign: "center", padding: "0 16px" }}>{errMsg}</span></div>}
+            {done && (
+              <div style={S.successOverlay}>
+                <div style={S.successBox}>
+                  <div style={{ fontSize: 40 }}></div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#4ade80" }}>Great job!</div>
+                  <div style={{ color: "#ccc", fontSize: 13 }}>You signed {kindLower} {letter} correctly!</div>
+                  <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
+                    <button style={S.tryAgain} onClick={reset}>Try Again</button>
+                    <button style={S.doneBtn} onClick={() => { onComplete?.(letter); onClose(); }}>Done</button>
+                  </div>
                 </div>
               </div>
+            )}
+            {status === "ready" && !done && detected && <div style={S.detectedBadge}>Seeing: <strong>{detected}</strong></div>}
+          </div>
+          {status === "ready" && !done && (
+            <div style={S.progressWrap}>
+              <div style={S.progressLabel}>Hold the sign for {kindLower} {letter}... {hits}/{REQUIRED}</div>
+              <div style={S.track}><div style={{ ...S.fill, width: pct + "%" }} /></div>
             </div>
           )}
-          {status === "ready" && !done && detected && <div style={S.detectedBadge}>Seeing: <strong>{detected}</strong></div>}
+          {feedbackLoading && (
+            <div style={S.aiFeedback}>
+              <span style={{ opacity: 0.6 }}> Analyzing your gesture...</span>
+            </div>
+          )}
+          {aiFeedback && !feedbackLoading && !done && (
+            <div style={S.aiFeedback}>
+              <span style={{ color: "#a78bfa", marginRight: 6 }}></span>
+              <span>{aiFeedback}</span>
+            </div>
+          )}
         </div>
-        {status === "ready" && !done && (
-          <div style={S.progressWrap}>
-            <div style={S.progressLabel}>Hold the sign for letter {letter}... {hits}/{REQUIRED}</div>
-            <div style={S.track}><div style={{ ...S.fill, width: pct + "%" }} /></div>
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -159,4 +214,5 @@ const S: Record<string, React.CSSProperties> = {
   track: { height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" },
   fill: { height: "100%", background: "linear-gradient(90deg, #7ec8e3, #a78bfa)", borderRadius: 4, transition: "width 0.2s ease" },
   detectedBadge: { position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.7)", color: "#7ec8e3", borderRadius: 8, padding: "4px 14px", fontSize: 14, whiteSpace: "nowrap" },
+  aiFeedback: { display: "flex", alignItems: "flex-start", gap: 6, background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.35)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#ddd", lineHeight: 1.5 },
 };

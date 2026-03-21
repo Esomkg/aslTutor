@@ -189,27 +189,81 @@ export function hasNotPracticedToday(): boolean {
 export interface MissEntry {
   letter: string;
   misses: number;
+  hits: number;
+}
+
+const MISS_KEY = "asl_miss_history";
+
+/** Called at end of every game with the round results. */
+export function recordGameResult(results: { letter: string; success: boolean }[]) {
+  try {
+    const stored: Record<string, { misses: number; hits: number }> =
+      JSON.parse(localStorage.getItem(MISS_KEY) || "{}");
+    for (const r of results) {
+      if (!stored[r.letter]) stored[r.letter] = { misses: 0, hits: 0 };
+      if (r.success) stored[r.letter].hits += 1;
+      else stored[r.letter].misses += 1;
+    }
+    localStorage.setItem(MISS_KEY, JSON.stringify(stored));
+  } catch {}
 }
 
 export function getMissedLetters(): MissEntry[] {
   try {
-    const scores: ScoreEntry[] = getHighScores();
-    // ScoreEntry doesn't store per-letter misses, so we infer from practiced vs not-practiced
-    // and return a sorted list based on what's in high scores metadata if available
-    const missMap: Record<string, number> = {};
-    for (const s of scores) {
-      // If score entry has missedLetters field (future-proof)
-      const entry = s as ScoreEntry & { missedLetters?: string[] };
-      if (entry.missedLetters) {
-        for (const l of entry.missedLetters) {
-          missMap[l] = (missMap[l] ?? 0) + 1;
-        }
-      }
-    }
-    return Object.entries(missMap)
-      .map(([letter, misses]) => ({ letter, misses }))
+    const stored: Record<string, { misses: number; hits: number }> =
+      JSON.parse(localStorage.getItem(MISS_KEY) || "{}");
+    return Object.entries(stored)
+      .map(([letter, v]) => ({ letter, misses: v.misses, hits: v.hits }))
+      .filter(e => e.misses > 0)
       .sort((a, b) => b.misses - a.misses);
   } catch {
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Number practice tracking (digits 1–9)
+// ---------------------------------------------------------------------------
+
+const PRACTICED_NUMBERS_KEY = "asl_practiced_numbers";
+
+export function getPracticedNumbers(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(PRACTICED_NUMBERS_KEY) || "[]"));
+  } catch { return new Set(); }
+}
+
+export function markNumberPracticed(digit: string) {
+  const set = getPracticedNumbers();
+  set.add(digit);
+  localStorage.setItem(PRACTICED_NUMBERS_KEY, JSON.stringify([...set]));
+}
+
+// ---------------------------------------------------------------------------
+// Number practice result tracking (digits 1–9)
+// ---------------------------------------------------------------------------
+
+export interface NumberStatEntry {
+  digit: string;
+  correct: number;
+  attempts: number;
+}
+
+const NUMBER_STATS_KEY = "asl_number_stats";
+
+export function getNumberStats(): Record<string, NumberStatEntry> {
+  try {
+    return JSON.parse(localStorage.getItem(NUMBER_STATS_KEY) || "{}");
+  } catch { return {}; }
+}
+
+/** Call when a number practice session completes (correct = true means they held the sign). */
+export function recordNumberResult(digit: string, correct: boolean) {
+  try {
+    const stats = getNumberStats();
+    if (!stats[digit]) stats[digit] = { digit, correct: 0, attempts: 0 };
+    stats[digit].attempts += 1;
+    if (correct) stats[digit].correct += 1;
+    localStorage.setItem(NUMBER_STATS_KEY, JSON.stringify(stats));
+  } catch {}
 }
