@@ -34,6 +34,8 @@ notebooks/.ipynb_checkpoints/
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env
 
 # OS
 .DS_Store
