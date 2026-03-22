@@ -9,7 +9,7 @@ import {
   getDailyChallenge, saveDailyChallenge, DailyChallenge,
   KEYS, recordPracticeToday, recordGameResult, getMissedLetters,
 } from "../utils/storage";
-import { playCorrect, playWrong, playAchievement, playStreak, playClick } from "../utils/sounds";
+import { playCorrect, playWrong, playAchievement, playStreak } from "../utils/sounds";
 
 const LETTERS = "ABCDEFGHIKLMNOPQRSTUVWXY".split("");
 const WORDS = ["CAT","DOG","BAT","CAN","HAM","FAN","BIG","CUP","HEN","MAP","NAP","OAK","PIG","RAN","SAP","TAN","VAN","WAX","YAK","FIG","GUM","HIP","KIT","LAP","MOP"];

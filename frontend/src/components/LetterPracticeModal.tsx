@@ -1,9 +1,10 @@
-﻿import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MinecraftCompletion } from "./MinecraftCompletion";
 import { playAchievement } from "../utils/sounds";
 
 const REQUIRED = 5;
-const WS_BASE = "ws://localhost:8000";
+const WS_BASE = import.meta.env.VITE_WS_URL ?? "ws://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 interface Props {
   letter: string;
@@ -86,7 +87,7 @@ export function LetterPracticeModal({ letter, description, emoji, onClose, onCom
                 lastFeedbackRef.current = now;
                 wrongStreakRef.current = 0;
                 setFeedbackLoading(true);
-                fetch("http://localhost:8000/api/gesture-feedback", {
+                fetch(API_BASE + "/api/gesture-feedback", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ target_letter: letter, detected_letter: dl, confidence: data.confidence ?? 0 }),
