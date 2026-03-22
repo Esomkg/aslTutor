@@ -1196,7 +1196,7 @@ def save_message(user_jwt: str, role: str, content: str) -> None:
 SUMMARY_THRESHOLD = 14  # summarize when history exceeds this many messages
 KEEP_RECENT = 6         # always keep this many recent messages verbatim
 
-def _summarize_history(history: list[dict], client: Groq) -> list[dict]:
+def _summarize_history(history: list[dict], client: OpenAI) -> list[dict]:
     """
     When history is long, summarize older messages into a single compact
     assistant message and keep only the most recent turns verbatim.
