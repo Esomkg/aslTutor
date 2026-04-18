@@ -452,6 +452,7 @@ export default function AITutorPage() {
   const [loading, setLoading] = useState(false);
   const [greetingLoading, setGreetingLoading] = useState(true);
   const [practiceModal, setPracticeModal] = useState<string | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(false);
   const [showBrowsing, setShowBrowsing] = useState<boolean>(() => {
     try { return localStorage.getItem("showBrowsing") === "true"; } catch { return false; }
   });
@@ -561,6 +562,32 @@ export default function AITutorPage() {
     }
   }, [messages, loading, practicedLetters, missedLetters, session]);
 
+  // ── Adaptive lesson plan ────────────────────────────────────────────────────
+  async function fetchAdaptiveLesson() {
+    if (lessonLoading) return;
+    setLessonLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/lesson/next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          practiced_letters: practicedLetters,
+          missed_letters: missedLetters.length > 0 ? missedLetters : null,
+          user_jwt: session?.access_token ?? null,
+        }),
+      });
+      const lesson = await res.json();
+      // Inject the lesson plan into the chat as an AI message
+      const lessonJson = JSON.stringify(lesson);
+      const content = `Here's your personalized lesson plan for today:\n[LESSON]${lessonJson}[/LESSON]`;
+      setMessages(prev => [...prev, { role: "assistant", content }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "Couldn't load your lesson plan right now. Try asking me directly!" }]);
+    } finally {
+      setLessonLoading(false);
+    }
+  }
+
   // ── Voice input ─────────────────────────────────────────────────────────────
   function toggleVoice() {
     const SR = getSpeechRecognition();
@@ -626,6 +653,14 @@ export default function AITutorPage() {
           title="Show live web browsing activity when the AI searches the web"
         >
           🌐 {showBrowsing ? "Browsing: ON" : "Browsing: OFF"}
+        </button>
+        <button
+          style={S.lessonBtn}
+          onClick={fetchAdaptiveLesson}
+          disabled={lessonLoading}
+          title="Get a personalized lesson plan based on your progress"
+        >
+          {lessonLoading ? "⟳" : "📋"} Today's Lesson
         </button>
       </div>
 
@@ -828,6 +863,12 @@ const S: Record<string, React.CSSProperties> = {
   browsingToggleOn: {
     background: "#1a2a08", color: "#a0d040",
     border: "2px solid #5a8a1a",
+  },
+  lessonBtn: {
+    padding: "4px 8px", fontSize: 6,
+    background: "#0a1a2a", color: "#4090c0",
+    border: "2px solid #1a4a7a", cursor: "pointer",
+    fontFamily: "'Press Start 2P', monospace", whiteSpace: "nowrap" as const,
   },
   // Thinking panel
   thinkingPanel: {

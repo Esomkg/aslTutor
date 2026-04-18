@@ -23,7 +23,7 @@ from backend.models import TranslationResult
 from backend.sign_recognizer import SignRecognizer, ModelLoadError, InvalidLandmarkError
 from backend.session_manager import SessionManager
 from backend.letter_recognizer import LetterRecognizer
-from backend.ai_agent import stream_chat, load_chat_history, generate_greeting, get_gesture_feedback
+from backend.ai_agent import stream_chat, load_chat_history, generate_greeting, get_gesture_feedback, get_next_lesson
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -134,11 +134,27 @@ class GestureFeedbackRequest(BaseModel):
     target_letter: str
     detected_letter: str | None = None
     confidence: float = 0.0
+    streak: int = 0
 
 @app.post("/api/gesture-feedback")
 def gesture_feedback(req: GestureFeedbackRequest):
-    tip = get_gesture_feedback(req.target_letter, req.detected_letter or "", req.confidence)
+    tip = get_gesture_feedback(req.target_letter, req.detected_letter or "", req.confidence, req.streak)
     return {"tip": tip}
+
+
+# ---------------------------------------------------------------------------
+# Adaptive lesson sequencing endpoint
+# ---------------------------------------------------------------------------
+
+class LessonRequest(BaseModel):
+    practiced_letters: list[str] = []
+    missed_letters: list[dict] | None = None
+    user_jwt: str | None = None
+
+@app.post("/api/lesson/next")
+def next_lesson(req: LessonRequest):
+    lesson = get_next_lesson(req.practiced_letters, req.missed_letters, req.user_jwt)
+    return lesson
 
 
 # ---------------------------------------------------------------------------

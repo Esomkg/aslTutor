@@ -1459,40 +1459,220 @@ def stream_chat(
         save_message(user_jwt, "assistant", full_response)
 
 
-def get_gesture_feedback(target: str, detected: str, confidence: float) -> str:
+def get_gesture_feedback(target: str, detected: str, confidence: float, streak: int = 0) -> str:
     """
     Returns a short, actionable tip when the user is signing the wrong letter.
-    Uses the ASL handshape knowledge base to give specific correction advice.
+    Feeds the lookup table as grounding context to the LLM so tips are both
+    accurate (knowledge-base backed) and naturally varied.
+    """
+    t = target.upper().strip()
+    d = detected.upper().strip() if detected else ""
+
+    # Lookup table — used as grounding context for the LLM
+    PAIR_CORRECTIONS: dict[tuple[str, str], str] = {
+        ("A", "S"): "Thumb is wrapping over fingers. For A, rest thumb on the SIDE of the fist, not over the top.",
+        ("A", "E"): "Fingers are too hooked. For A, keep a loose fist with thumb on the side.",
+        ("S", "A"): "Thumb is on the side. For S, wrap thumb OVER the front of the fingers.",
+        ("S", "E"): "Fingers too hooked. S is a fist with thumb over fingers, not hooked fingertips.",
+        ("E", "A"): "Curl fingertips DOWN toward palm more. E has hooked fingers, not a straight fist.",
+        ("E", "S"): "Tuck thumb UNDER fingers. In E the thumb goes under, in S it goes over.",
+        ("B", "4"): "Tuck thumb across palm. B needs the thumb tucked in, otherwise it looks like the number 4.",
+        ("U", "V"): "Bring index and middle fingers TOGETHER. U has them touching, V has them spread apart.",
+        ("V", "U"): "SPREAD index and middle fingers apart. V is a peace sign, U has them together.",
+        ("U", "H"): "Point fingers UP. U is vertical, H is horizontal (pointing sideways).",
+        ("H", "U"): "Rotate hand so fingers point SIDEWAYS. H is horizontal, U points up.",
+        ("V", "H"): "Point fingers UP and spread them. V is vertical peace sign, H is two fingers sideways.",
+        ("M", "N"): "Add one more finger. M folds THREE fingers over the thumb, N only uses two.",
+        ("N", "M"): "Remove one finger. N folds only TWO fingers over the thumb, M uses three.",
+        ("I", "Y"): "Tuck thumb in. I is ONLY the pinky up. Y adds the thumb out (shaka sign).",
+        ("Y", "I"): "Stick thumb OUT too. Y needs both pinky AND thumb extended, like a shaka/hang loose.",
+        ("G", "D"): "Point finger SIDEWAYS with thumb parallel. G points horizontally like a gun.",
+        ("D", "G"): "Point index finger UP and curl others to touch thumb. D is vertical, G is horizontal.",
+        ("K", "V"): "Insert thumb between index and middle fingers. K needs thumb touching the middle finger knuckle.",
+        ("V", "K"): "Remove thumb from between fingers. V is just a peace sign with no thumb involvement.",
+        ("P", "K"): "Rotate whole hand DOWN so fingers point toward the floor. P is K pointing downward.",
+        ("K", "P"): "Rotate hand UP so fingers point forward. K points up/forward, P points down.",
+        ("R", "U"): "Cross middle finger OVER index finger. R has crossed fingers, U has them side by side.",
+        ("U", "R"): "Uncross fingers and hold them side by side. U has fingers together but NOT crossed.",
+        ("T", "D"): "Tuck thumb between index and middle fingers. T has the thumb peeking out between those two fingers.",
+        ("L", "D"): "Extend thumb OUT to the side. L is an L-shape with index up AND thumb out at a right angle.",
+        ("F", "O"): "Keep middle, ring, pinky fingers straight UP. F has index+thumb touching but three fingers extended.",
+        ("O", "F"): "Curve ALL fingers to meet the thumb tip. O is a full circle, not just index+thumb.",
+        ("C", "O"): "Open hand more. C is a wider curve like holding a cup, O closes tighter with all fingertips meeting.",
+        ("X", "D"): "Only hook the INDEX finger. X is just the index finger bent like a hook, everything else stays curled.",
+        ("W", "6"): "Spread all three fingers (index, middle, ring) wide. W needs three clearly spread fingers.",
+    }
+
+    target_info = ASL_HANDSHAPES.get(t, {})
+    detected_info = ASL_HANDSHAPES.get(d, {}) if d else {}
+
+    # Build grounding context from lookup table + knowledge base
+    pair_note = PAIR_CORRECTIONS.get((t, d), "")
+    target_shape = target_info.get("shape", "")
+    target_tip = target_info.get("tip", "")
+    target_mistakes = target_info.get("common_mistakes", "")
+    detected_shape = detected_info.get("shape", "") if detected_info else ""
+
+    # Vary tone based on streak
+    if streak > 40:
+        tone = "They've been stuck a while — be extra encouraging and give a fresh angle."
+    elif streak > 20:
+        tone = "Try a different way of explaining it — a new mental model or analogy."
+    else:
+        tone = "Be direct and specific."
+
+    grounding = f"""Known correction for {t}→{d}: {pair_note}""" if pair_note else ""
+
+    prompt = f"""You are an ASL coach giving real-time feedback during a fingerspelling practice session.
+
+TARGET letter: {t}
+Correct handshape: {target_shape}
+Memory tip: {target_tip}
+Common mistakes: {target_mistakes}
+
+Camera is detecting: {d if d else 'nothing clear'} ({detected_shape})
+Confidence: {confidence:.0%}
+{grounding}
+
+{tone}
+Write ONE sentence of feedback. Start with the physical action (e.g. "Move your thumb...", "Curl your index finger..."). 
+Use the grounding correction above as your source of truth but rephrase it naturally. Max 20 words."""
+
+    try:
+        client = get_groq_client()
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=60,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        # Fall back to lookup table directly if LLM fails
+        return pair_note or target_tip or f"Check your handshape for {t}."
+
+
+def get_next_lesson(
+    practiced_letters: list[str],
+    missed_letters: list[dict] | None = None,
+    user_jwt: str | None = None,
+) -> dict:
+    """
+    Generate a personalized spaced-repetition lesson plan.
+    Returns a structured lesson with review items, new letters, and drills.
     """
     client = get_groq_client()
 
-    target_info = ASL_HANDSHAPES.get(target.upper(), {})
-    detected_info = ASL_HANDSHAPES.get(detected.upper(), {}) if detected else {}
+    # Build data for the LLM
+    practiced_set = set(practiced_letters)
+    remaining = [l for l in ALL_LETTERS if l not in practiced_set]
 
-    target_desc = target_info.get("shape", "unknown handshape")
-    detected_desc = detected_info.get("shape", "unknown handshape") if detected_info else "unclear"
-    tip = target_info.get("tip", "")
-    mistakes = target_info.get("common_mistakes", "")
+    # Identify weak spots from confusable pairs
+    weak_spots = []
+    for group in CONFUSABLE_PAIRS:
+        if any(l in practiced_set for l in group) and not all(l in practiced_set for l in group):
+            weak_spots.extend([l for l in group if l not in practiced_set])
+    # Also add letters that are in confusable pairs and were practiced (likely to be confused)
+    for group in CONFUSABLE_PAIRS:
+        if all(l in practiced_set for l in group):
+            weak_spots.extend(list(group))
+    weak_spots = list(dict.fromkeys(weak_spots))[:8]  # deduplicate, keep order
 
-    prompt = f"""You are an ASL coach giving real-time feedback. Be brief (1-2 sentences max).
+    # Top missed from game data
+    top_missed = []
+    if missed_letters:
+        top_missed = [m["letter"] for m in sorted(missed_letters, key=lambda x: x.get("misses", 0), reverse=True)[:5]]
 
-The user is trying to sign: {target.upper()}
-Correct handshape for {target.upper()}: {target_desc}
-Tip: {tip}
-Common mistakes: {mistakes}
+    level = "Beginner" if len(practiced_set) < 8 else "Intermediate" if len(practiced_set) < 18 else "Advanced"
+    pct = round(len(practiced_set) / len(ALL_LETTERS) * 100)
 
-The system is detecting: {detected.upper() if detected else 'nothing'} (confidence: {confidence:.0%})
-Detected handshape description: {detected_desc}
+    context = f"""User level: {level} ({len(practiced_set)}/{len(ALL_LETTERS)} letters = {pct}%)
+Practiced: {', '.join(sorted(practiced_set)) if practiced_set else 'none'}
+Not yet practiced: {', '.join(remaining[:12]) if remaining else 'all done'}
+Confusable weak spots: {', '.join(weak_spots) if weak_spots else 'none identified'}
+Most missed in games: {', '.join(top_missed) if top_missed else 'no game data'}"""
 
-Give one short, specific correction tip to help them fix their hand position. No intro, no fluff."""
+    prompt = f"""You are an ASL tutor creating a personalized 10-minute practice session using spaced repetition principles.
+
+{context}
+
+Create a lesson plan as a JSON object with this exact structure:
+{{
+  "level": "{level}",
+  "practiced_count": {len(practiced_set)},
+  "total_letters": {len(ALL_LETTERS)},
+  "completion_pct": {pct},
+  "focus": "one sentence describing today's focus",
+  "next_letters_to_learn": ["up to 3 new letters from the not-yet-practiced list"],
+  "weak_spots": ["up to 4 letters to review based on confusable pairs and misses"],
+  "exercises": [
+    {{"type": "review", "letters": ["X", "Y"], "description": "specific drill description", "tips": {{"X": "tip", "Y": "tip"}}}},
+    {{"type": "new_letters", "letters": ["Z"], "description": "specific intro description", "tips": {{"Z": "tip"}}}},
+    {{"type": "drill", "description": "fingerspell these 5 words: ..."}},
+    {{"type": "game", "description": "play Sign Sprint on Easy for 2 minutes"}}
+  ]
+}}
+
+Rules:
+- Prioritize reviewing confusable pairs the user has partially learned
+- Introduce at most 2-3 new letters per session
+- Include at least one word-spelling drill using only practiced letters
+- Be specific in descriptions (name the actual letters and words)
+- Return ONLY the JSON, no other text"""
 
     try:
         response = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=80,
-            temperature=0.5,
+            max_tokens=600,
+            temperature=0.4,
         )
-        return response.choices[0].message.content.strip()
-    except Exception as exc:
-        return f"Check your hand position for {target.upper()}."
+        raw = response.choices[0].message.content.strip()
+        # Strip markdown code fences if present
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        return json.loads(raw)
+    except Exception:
+        # Fallback to rule-based plan
+        return _suggest_next_lesson(user_jwt)
+
+
+def get_practice_word(practiced_letters: list[str], difficulty: str = "easy") -> dict:
+    """
+    Pick a word for conversational practice mode.
+    Returns a word that can be fingerspelled using only practiced letters.
+    difficulty: 'easy' (3-4 letters), 'medium' (5-6), 'hard' (7+)
+    """
+    import random
+
+    practiced_set = set(l.upper() for l in practiced_letters)
+
+    # If user has no practiced letters, give them beginner-friendly letters to start
+    if len(practiced_set) < 3:
+        practiced_set = {"A", "B", "C", "D", "E", "H", "I", "L", "O", "S"}
+
+    # Word banks by difficulty
+    easy_words = ["CAT", "DOG", "HAT", "BIG", "SIT", "CUP", "BED", "FAN", "HOP", "LAP", "NAP", "OAK", "TAB", "VAN", "WAX"]
+    medium_words = ["CHAIR", "CLOUD", "DANCE", "EARTH", "HEART", "LIGHT", "MUSIC", "NIGHT", "OCEAN", "PLANT", "RIVER", "SMILE", "TIGER", "VOICE", "WATER"]
+    hard_words = ["BLANKET", "CAPTAIN", "DIAMOND", "FREEDOM", "HISTORY", "KITCHEN", "LIBRARY", "MORNING", "NATURAL", "OUTSIDE", "PICTURE", "RAINBOW", "STUDENT", "VILLAGE"]
+
+    pool = easy_words if difficulty == "easy" else medium_words if difficulty == "medium" else hard_words
+
+    # Filter to words using only practiced letters (J and Z require motion, skip them)
+    valid = [w for w in pool if all(c in practiced_set for c in w) and "J" not in w and "Z" not in w]
+
+    if not valid:
+        # Try easy words regardless of difficulty
+        valid = [w for w in easy_words if all(c in practiced_set for c in w) and "J" not in w and "Z" not in w]
+
+    if not valid:
+        # Build a word from their practiced letters
+        letters = sorted(l for l in practiced_set if l not in ("J", "Z"))
+        if len(letters) >= 3:
+            word = letters[0] + letters[1] + letters[2]
+            return {"word": word, "letters": list(word), "difficulty": difficulty}
+        # Absolute fallback
+        return {"word": "CAT", "letters": ["C", "A", "T"], "difficulty": difficulty}
+
+    word = random.choice(valid)
+    return {"word": word, "letters": list(word), "difficulty": difficulty}

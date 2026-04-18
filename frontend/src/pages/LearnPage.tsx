@@ -426,7 +426,7 @@ const S: Record<string, React.CSSProperties> = {
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 4, width: "100%", maxWidth: 700 },
   letterCard: { background: "#2a2a14", border: "3px solid #4a4a20", boxShadow: "inset -2px -2px 0 #1a1a08, inset 2px 2px 0 rgba(255,255,255,0.05)", padding: "12px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", position: "relative" },
   letterCardActive: { background: "#2a3a0a", border: "3px solid #8ab828", boxShadow: "inset -2px -2px 0 #1a2a04, inset 2px 2px 0 rgba(255,255,255,0.1)" },
-  letterCardPracticed: { borderColor: "#5a8a1a" },
+  letterCardPracticed: { border: "3px solid #5a8a1a" },
   checkmark: { position: "absolute", top: 3, right: 5, fontSize: 8, color: "#a0d040" },
   correctBadge: { position: "absolute", bottom: 3, right: 4, fontSize: 6, color: "#f0c030", background: "#2a2a08", padding: "1px 3px", border: "1px solid #5a5010" },
   emoji: { fontSize: 20 },

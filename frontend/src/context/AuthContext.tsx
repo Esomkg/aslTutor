@@ -38,7 +38,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signUp(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin },
+    });
     return error?.message ?? null;
   }
 
